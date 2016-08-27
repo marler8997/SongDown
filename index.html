@@ -1,0 +1,331 @@
+<!doctype html5>
+<html><head>
+<title>SongDown</title>
+<script src="songDownParser.js"></script>
+<script type="text/javascript">
+function get(n){return document.getElementById(n);}
+
+var LINE_TYPE_BLANK        = 0;
+var LINE_TYPE_SONG_TITLE   = 1;
+var LINE_TYPE_SECTION_NAME = 2;
+var LINE_TYPE_CHORDS       = 3;
+
+function IsProbablyASectionName(name)
+{
+    if(name.includes(":") || name.includes("[")) {
+        return true;
+    }
+    if(name == "Intro") {
+        return true;
+    }
+    if(name.toLowerCase().startsWith("verse")) {
+        return true;
+    }
+    return false;
+}
+
+function ParseText(text)
+{
+    var song = {
+        'title':null,
+        'credit':null,
+        'sections':[],
+        'key':null,
+        'errors':[]
+    };
+
+    var lines = text.split("\n");
+    var lineIndex = 0;
+    var previousLineType;
+
+    // Get the Title
+    while(lineIndex < lines.length) {
+        var line = lines[lineIndex];
+        var trimmedLine  = line.trim();
+        if(trimmedLine.length > 0) {
+            if(IsProbablyASectionName(trimmedLine)) {
+                break;
+            }
+            song.title = trimmedLine;
+            previousLineType = LINE_TYPE_SONG_TITLE;
+            lineIndex++;
+            break;
+        } else {
+            previousLineType = LINE_TYPE_BLANK;
+            lineIndex++;
+        }
+    }
+
+
+    while(lineIndex < lines.length) {
+        var line = lines[lineIndex];
+        var trimmedLine  = line.trim();
+        /*
+        if(trimmedLine == "Intro") {
+            html += '<div class="SongSection">' + trimmedLine + '</div>';
+        } else {
+            html += '<div><pre>' + line + '</pre></div>';
+        }
+        */
+        lineIndex++;
+    }
+
+    return song;
+}
+
+
+
+
+var testInvalidRules = [{
+    'name' : 'testInvalidDefinitionName',
+    'definitionName' : 'invalidDefinitionName',
+    'args' : [new RegExp(':')],
+    'lineType' : LINE_TYPE_SECTION_NAME
+},{
+    'name' : 'testNDefinitionOrDefinitionName',
+    'args' : [new RegExp(':')],
+    'lineType' : LINE_TYPE_SECTION_NAME
+}];
+
+function ProcessText()
+{
+    //SetSong(parseSongUsingRules(get('SongDownTextArea').value, testInvalidRules));
+    SetSong(parseSongUsingRules(get('SongDownTextArea').value, globalRules));
+    
+    //var text = get('SongDownTextArea').value;
+    //var song = ParseText(text);
+    //void SetSong(song);
+}
+
+function SetSong(song)
+{
+    var html = '';
+
+    if(song.errors.length > 0) {
+        if(song.errors.length == 1) {
+            html += '<h1>Parse Error</h1>';
+            html += song.errors[0];
+        } else {
+            html += '<h1>' + song.errors.length + ' Parse Errors</h1>';
+            for(var errorIndex = 0; errorIndex < song.errors.length; errorIndex++) {
+                html += '<p>' + song.errors[errorIndex] + '</p>';
+            }
+        }
+    } else if(song.debugLineObjects) {
+        for(var i = 0; i < song.debugLineObjects.length; i++) {
+            var lineObject = song.debugLineObjects[i];
+            html += '<div>matched ' + lineObject.matchingRules.length + ' rules: ' + lineObject.line + '</div>';
+        }
+    } else {
+        if(song.title) {
+            html += '<div class="SongTitleDiv">' + song.title + '</div>';
+        } else {
+            html += '<div class="SongTitleDiv">[No Title]</div>';
+        }
+
+        for(var sectionIndex = 0; sectionIndex < song.sections.length; sectionIndex++) {
+            var section = song.sections[sectionIndex];
+            html += '<div class="SongSectionDiv">';
+
+            if(section.name) {
+                html += '<div class="SongSectionNameDiv">' + section.name + '</div>';
+            }
+
+            for(var lineIndex = 0; lineIndex < section.lines.length; lineIndex++) {
+                var line = section.lines[lineIndex];
+                html += '<div class="SongLine">'
+                if(line.chords) {
+                    html += '<div class="ChordsLine"><pre>' + line.chords + '</pre></div>';
+                }
+                if(line.lyrics) {
+                    html += '<div class="LyricsLine"><pre>' + line.lyrics + '</pre></div>';
+                }
+                html += '</pre></div>'
+            }
+
+            html += '</div>';
+        }
+    }
+
+    get('SongDiv').innerHTML = html;
+}
+
+function test(expected, text)
+{
+    var actual = ParseText(text);
+    if(actual.title != expected.title) {
+        console.log("Test '" + text + "'");
+        console.log("expected title: " + expected.title);
+        console.log("actual   title: " + actual.title);
+        console.log("TestFailed");
+        return false;
+    }
+
+}
+test({'title':null},"");
+test({'title':"My Cool Song"},"My Cool Song");
+test({'title':"My Cool Song"},"\nMy Cool Song");
+test({'title':"My Cool Song"},"   My Cool Song");
+test({'title':"My Cool Song"},"My Cool Song    ");
+test({'title':"My Cool Song"},"    My Cool Song    ");
+
+test({'title':null},"Intro");
+test({'title':null},"Intro:");
+test({'title':null},"[Intro]");
+test({'title':null},"  [Intro]");
+test({'title':null},"[Intro]  ");
+test({'title':null},"   [Intro]  ");
+
+test({'title':null},"Verse");
+test({'title':null},"verse");
+test({'title':null},"Verse:");
+test({'title':null},"verse:");
+test({'title':null},"Verse :");
+test({'title':null},"verse :");
+test({'title':null},"[Verse]");
+test({'title':null},"[verse]");
+
+test({'title':null},"Verse 1");
+test({'title':null},"verse 1");
+test({'title':null},"Verse 1:");
+test({'title':null},"verse 1:");
+test({'title':null},"Verse 1 :");
+test({'title':null},"verse 1 :");
+test({'title':null},"[Verse 1]");
+test({'title':null},"[verse 1]");
+
+function BodyOnLoad()
+{
+    SetSong({
+        'title':'Test Song',
+        'sections': [{
+            'name':'Intro',
+            'lines': [{
+                'chords':'A      E     F#m     D'
+            }]
+        },{
+            'name':'Verse 1',
+            'lines':[{
+                'chords':'A        E        F#m      D',
+                'lyrics':'Hello, is it me you\'re looking for?'
+            }]
+        }],
+        'errors':[]
+    });
+}
+
+</script>
+<style type="text/css">
+*{margin:0;padding:0}
+body{text-align:center}
+#SongDownTextArea{
+ resize:none;
+ width:50em;
+ height:30em;
+}
+button{
+ padding:8px 20px;
+ font-weight:bold;
+}
+
+
+.SongTitleDiv{
+ font-weight:bold;
+ font-size:3em;
+}
+.SongSectionDiv{
+ border:1px solid red;
+ margin-top:1em;
+}
+.SongSectionNameDiv{
+ font-weight:bold;
+ font-size:1.3em;
+}
+
+
+</style>
+</head><body onload="BodyOnLoad()">
+<h1>Song Down</h1>
+<div style="margin:10px 0">
+  <button onclick="ProcessText()">Process</button>
+</div>
+<textarea id="SongDownTextArea">
+Fierce
+Intro
+G2 /// | D /// | Bm /// | A ///
+ Verse 1
+ Before I
+G2
+call, before I ever
+D
+cry
+ You answer
+Bm
+me from where the thunder
+Asus
+hides
+ I can't out
+G2
+run, this heart I'm tethered
+D
+to
+ When every
+Bm
+step I collide with
+Asus
+You
+ Chorus
+G2
+Like a tidal wave
+D
+crashing over me
+Bm7
+rushing in to meet me here
+Asus
+Your love is
+G2
+fierce!
+ Like a hurricane
+D
+that I can't escape
+Bm7
+tearing through the atmosphere
+Asus
+Your love is
+G2
+fierce!
+ Verse 2
+ You cannot
+G2
+fail, the only thing I've
+D
+found
+ is through it
+Bm
+all You never let me
+Asus
+down
+ You don't hold
+G2
+back, relentless in pur
+D
+suit
+ at every
+Bm
+turn I come face to face with
+Asus
+You
+ Chorus
+ Interlude
+G2 /// | //// | Bm7 /// | A ///
+ Bridge
+G2
+You chase me down, You seek me out
+Bm7
+How could I be
+A
+lost when You have called me found?
+</textarea>
+<br/><br/><br/>
+<div id="SongDiv" style="text-align:left;width:50em;padding:3em;margin:0 auto;border:1px solid black"></div>
+</body></html>
